@@ -39,8 +39,15 @@ object DauApp {
             val midsBC = ssc.sparkContext.broadcast(mids)
             // rdd中只有新启动的设备
             // 3.2 把已经启动过的设备过滤掉
-            rdd.filter(startupLog => !midsBC.value.contains(startupLog.mid))
-            
+            rdd
+                .filter(startupLog => !midsBC.value.contains(startupLog.mid))
+                // 原因是因为, 如果一个mid第一批次启动的时候, 有多次启动行为的过滤
+                .map(log => (log.mid, log))
+                .groupByKey
+                .map{
+//                    case (mid, logIt) =>  logIt.toList.sortBy(_.ts).head
+                    case (mid, logIt) =>  logIt.toList.minBy(_.ts)  // 排序取最小
+                }
         })
         // 3.3 把新启动的设备id写入到redis
         filterStartupStream.foreachRDD(rdd => {
@@ -52,14 +59,11 @@ object DauApp {
                 startupLogs.foreach(log => {
                     client.sadd(Constant.STARTUP_TOPIC + ":" + log.logDate, log.mid)
                 })
-                
                 client.close()
             })
         })
-        
-        filterStartupStream.print
-        
         // 4. 新启动的设备写入到hbase
+        
         
         
         ssc.start()
