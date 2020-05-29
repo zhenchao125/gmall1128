@@ -64,6 +64,7 @@ object DauApp {
             // 4. 新启动的设备写入到hbase, 通过phoenix
             import org.apache.phoenix.spark._
             rdd.saveToPhoenix("GMALL_DAU1128",
+                // 这个地方写的是phoenix中的表的列名!!!
                 Seq("MID", "UID", "APPID", "AREA", "OS", "CHANNEL", "LOGTYPE", "VERSION", "TS", "LOGDATE", "LOGHOUR"),
                 zkUrl = Some("hadoop102,hadoop103,hadoop104:2181")
             )
