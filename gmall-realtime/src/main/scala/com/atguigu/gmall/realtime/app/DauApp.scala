@@ -1,8 +1,11 @@
 package com.atguigu.gmall.realtime.app
 
+import com.alibaba.fastjson.JSON
 import com.atguigu.gmall.common.Constant
+import com.atguigu.gmall.realtime.bean.StartupLog
 import com.atguigu.gmall.realtime.util.MyKafkaUtil
 import org.apache.spark.SparkConf
+import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 
 /**
@@ -16,7 +19,15 @@ object DauApp {
         // 1. 消费kafka数据
         val sourceStream = MyKafkaUtil.getKafkaStream(ssc, Constant.STARTUP_TOPIC)
         
-        sourceStream.print
+        // 2. 把流中的数据封装到样例中.
+        val startupLogStream: DStream[StartupLog] = sourceStream.map(log => JSON.parseObject(log, classOf[StartupLog]))
+        startupLogStream.print
+        // 3. 借助redis去重.
+        // 3.1 从redis读到所有今天启动过的设备
+        // 3.2 把已经启动过的设备过滤掉
+        
+        // 4. 新启动的设备写入到hbase
+        
         
         ssc.start()
         ssc.awaitTermination()
