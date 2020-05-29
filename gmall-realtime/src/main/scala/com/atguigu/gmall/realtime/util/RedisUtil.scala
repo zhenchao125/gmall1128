@@ -37,7 +37,7 @@ object RedisUtil {
         
         
         val clinet: Jedis = pool.getResource
-        println(clinet.get("k1"))
+        println(clinet.smembers("abcd"))
         
         clinet.close() // 不是真的close而是把连接还给连接池
         

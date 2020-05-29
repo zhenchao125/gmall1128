@@ -44,13 +44,13 @@ object DauApp {
                 // 原因是因为, 如果一个mid第一批次启动的时候, 有多次启动行为的过滤
                 .map(log => (log.mid, log))
                 .groupByKey
-                .map{
-//                    case (mid, logIt) =>  logIt.toList.sortBy(_.ts).head
-                    case (mid, logIt) =>  logIt.toList.minBy(_.ts)  // 排序取最小
+                .map {
+                    //                    case (mid, logIt) =>  logIt.toList.sortBy(_.ts).head
+                    case (mid, logIt) => logIt.toList.minBy(_.ts) // 排序取最小
                 }
         })
-        // 3.3 把新启动的设备id写入到redis
         filterStartupStream.foreachRDD(rdd => {
+            // 3.3 把新启动的设备id写入到redis
             // 写法1: 把rdd中, 所有的mid拉取到驱动端, 一次性写入
             // 写法2: 每个分区向外写
             rdd.foreachPartition(startupLogs => {
@@ -61,9 +61,13 @@ object DauApp {
                 })
                 client.close()
             })
+            // 4. 新启动的设备写入到hbase, 通过phoenix
+            import org.apache.phoenix.spark._
+            rdd.saveToPhoenix("GMALL_DAU1128",
+                Seq("MID", "UID", "APPID", "AREA", "OS", "CHANNEL", "LOGTYPE", "VERSION", "TS", "LOGDATE", "LOGHOUR"),
+                zkUrl = Some("hadoop102,hadoop103,hadoop104:2181")
+            )
         })
-        // 4. 新启动的设备写入到hbase
-        
         
         
         ssc.start()
@@ -78,5 +82,9 @@ object DauApp {
 
 key                         value
 "mid:" + day                set  mid_1 mid_2 ...
+
+----
+
+hbase存储的是日活的明细: 设备每天的第一次启动的明细
 
  */
