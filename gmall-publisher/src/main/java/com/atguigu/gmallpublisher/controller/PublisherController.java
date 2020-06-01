@@ -51,6 +51,7 @@ public class PublisherController {
     }
 
     // http://localhost:8070/realtime-hour?id=dau&date=2020-02-11
+    // http://localhost:8070/realtime-hour?id=order_amount&date=2020-02-14
     @GetMapping("/realtime-hour")
     public String realtimeHour(String id, String date) {
         if ("dau".equals(id)) {
@@ -62,6 +63,18 @@ public class PublisherController {
                 "today":{"12":38,"13":1233,"17":123,"19":688 }}
              */
             HashMap<String, Map<String, Long>> result = new HashMap<>();
+            result.put("today", today);
+            result.put("yesterday", yesterday);
+            return JSON.toJSONString(result);
+        }else if("order_amount".equals(id)){
+            Map<String, Double> today = service.getHourAmount(date);
+            Map<String, Double> yesterday = service.getHourAmount(getYesterday(date));
+            /*
+            {"yesterday":{"11":383,"12":123,"17":88,"19":200 },
+                "today":{"12":38,"13":1233,"17":123,"19":688 }}
+
+             */
+            Map<String, Map<String, Double>> result = new HashMap<>();
             result.put("today", today);
             result.put("yesterday", yesterday);
             return JSON.toJSONString(result);

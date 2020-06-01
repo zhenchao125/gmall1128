@@ -5,6 +5,7 @@ import com.atguigu.gmallpublisher.mapper.OrderMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,4 +55,19 @@ public class PublisherServiceImp implements PublisherService {
         Double totalAmount = orderMapper.getTotalAmount(date);
         return totalAmount == null ? 0 : totalAmount;
     }
+
+    // 每个小时的销售额
+    @Override
+    public Map<String, Double> getHourAmount(String date) {
+        // Map("create_hour"->"10", "sum" -> 1000)  => "10"->1000
+        List<Map<String, Object>> hourAmountList = orderMapper.getHourAmount(date);
+        Map<String, Double> result = new HashMap<>();
+        for (Map<String, Object> map : hourAmountList) {
+            String key = (String) map.get("CREATE_HOUR");
+            Double value = ((BigDecimal) map.get("SUM")).doubleValue();
+            result.put(key, value);
+        }
+
+        return result;
+}
 }
