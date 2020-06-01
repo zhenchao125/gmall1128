@@ -61,6 +61,7 @@ object DauApp {
                 })
                 client.close()
             })
+            
             // 4. 新启动的设备写入到hbase, 通过phoenix
             import org.apache.phoenix.spark._
             rdd.saveToPhoenix("GMALL_DAU1128",
