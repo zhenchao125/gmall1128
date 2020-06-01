@@ -1,6 +1,7 @@
 package com.atguigu.gmallpublisher.service;
 
 import com.atguigu.gmallpublisher.mapper.DauMapper;
+import com.atguigu.gmallpublisher.mapper.OrderMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -42,5 +43,15 @@ public class PublisherServiceImp implements PublisherService {
             result.put(key, value);
         }
         return result;
+    }
+
+    @Autowired
+    OrderMapper orderMapper;
+
+    @Override
+    public Double getTotalAmount(String date) {
+        // 当指定日期中没有数据的时候, 则这个地方会得到null
+        Double totalAmount = orderMapper.getTotalAmount(date);
+        return totalAmount == null ? 0 : totalAmount;
     }
 }

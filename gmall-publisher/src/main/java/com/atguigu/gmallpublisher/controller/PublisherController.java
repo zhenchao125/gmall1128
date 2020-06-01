@@ -21,9 +21,10 @@ public class PublisherController {
 
     @Autowired
     PublisherService service;
+
     // http://localhost:8070/realtime-total?date=2020-05-29
     @GetMapping("/realtime-total")
-    public String realTotal(@RequestParam("date") String date){
+    public String realTotal(@RequestParam("date") String date) {
 
         ArrayList<Map<String, String>> result = new ArrayList<>();
 
@@ -39,13 +40,20 @@ public class PublisherController {
         map2.put("value", "233");
         result.add(map2);
 
+        Map<String, String> map3 = new HashMap<>();
+        map3.put("id", "order_amount");
+        map3.put("name", "新增交易额");
+        map3.put("value", service.getTotalAmount(date).toString());
+        result.add(map3);
+
+
         return JSON.toJSONString(result);
     }
 
     // http://localhost:8070/realtime-hour?id=dau&date=2020-02-11
     @GetMapping("/realtime-hour")
-    public String realtimeHour(String id, String date){
-        if("dau".equals(id)){
+    public String realtimeHour(String id, String date) {
+        if ("dau".equals(id)) {
             Map<String, Long> today = service.getHourDau(date);
             Map<String, Long> yesterday = service.getHourDau(getYesterday(date));
 
@@ -60,14 +68,13 @@ public class PublisherController {
         }
 
 
-
         return "ok";
     }
 
     /*
     根据指定的日期, 计算昨天
      */
-    private String getYesterday(String date){
+    private String getYesterday(String date) {
 //        return LocalDate.parse(date).plusDays(-1).toString();
         return LocalDate.parse(date).minusDays(1).toString();
     }
