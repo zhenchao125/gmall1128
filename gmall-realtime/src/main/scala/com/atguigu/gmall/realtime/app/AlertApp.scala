@@ -4,7 +4,7 @@ package com.atguigu.gmall.realtime.app
 import com.alibaba.fastjson.JSON
 import com.atguigu.gmall.common.Constant
 import com.atguigu.gmall.realtime.bean.{AlertInfo, EventLog}
-import com.atguigu.gmall.realtime.util.MyKafkaUtil
+import com.atguigu.gmall.realtime.util.{ESUtil, MyKafkaUtil}
 import org.apache.spark.SparkConf
 import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.streaming.{Minutes, Seconds, StreamingContext}
@@ -66,12 +66,25 @@ object AlertApp {
                 }
                 // 返回预警信息.
                 // (是否产生预警信息(boolean),   预警信息的封装 )
-                (!isClickItem && uidSet.size() >= 3, AlertInfo(mid, uidSet, itemSet, eventList))
+                (!isClickItem && uidSet.size() >= 3, AlertInfo(mid, uidSet, itemSet, eventList, System.currentTimeMillis()))
         }
         
-        alertInfoStream.print(10000)
         // 数据写入到es, 讲完es之后再回来完成!
-        
+        alertInfoStream
+            .filter(_._1) // 把需要预警过滤出来
+            .map(_._2) // 只保留预警信息
+            .foreachRDD(rdd => {
+                /*rdd.foreachPartition((it: Iterator[AlertInfo]) => {
+                    // 同一设备，每分钟只记录一次预警。-> 靠es来保证. (spark-streaming不处理)
+                    // 如果id相同, 后面的会覆盖前面的!!!  mid_ + 分钟数
+                    val sources = it
+                        .map(info => (info.mid + "_" + info.ts / 1000 / 60, info))
+                    ESUtil.insertBulk("gmall_coupon_alert1128", sources)
+                })*/
+                import ESUtil._
+                rdd.saveToES("gmall_coupon_alert1128")
+            })
+        alertInfoStream.print(10000)
         ssc.start()
         ssc.awaitTermination()
         

@@ -38,7 +38,7 @@ object JsonMock {
     // 用户行为的分布(事件分布)
     val eventOpts = RandomOptions(
         ("addFavor", 10), ("addComment", 30),
-        ("addCart", 20), ("clickItem", 5), ("coupon", 100))
+        ("addCart", 20), ("clickItem", 1), ("coupon", 200))
     
     // app 分发渠道分布
     val channelOpts = RandomOptions(
@@ -61,7 +61,7 @@ object JsonMock {
         `area` string COMMENT '城市'
         `channel` string COMMENT '渠道'
          */
-        val mid: String = "mid_" + RandomNumUtil.randomInt(1, 10)
+        val mid: String = "mid_" + RandomNumUtil.randomInt(1, 100)
         val uid: String = "" + RandomNumUtil.randomInt(1, 10000)
         val os: String = osOpts.getRandomOption()
         val appId: String = this.appId
