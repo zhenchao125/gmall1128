@@ -11,6 +11,7 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.apache.spark.{SparkConf, SparkContext}
+import org.json4s.DefaultFormats
 import org.json4s.jackson.Serialization
 import redis.clients.jedis.Jedis
 
@@ -49,7 +50,7 @@ object SaleDetailApp {
      * @param timeout
      */
     def saveToRedis(key: String, value: AnyRef, client: Jedis, timeout: Int) = {
-        import org.json4s.DefaultFormats
+        
         val content = Serialization.write(value)(DefaultFormats)
         client.setex(key, timeout, content)
     }
@@ -99,7 +100,7 @@ object SaleDetailApp {
                 val result: Iterator[SaleDetail] = it.flatMap {
                     // order_info有数据, order_detail有数据
                     case (orderId, (Some(orderInfo), Some(orderDetail))) =>
-                        println("Some(orderInfo)   Some(orderDetail)")
+//                        println("Some(orderInfo)   Some(orderDetail)")
                         // 1. 把order_info信息写入到缓存(因为order_detail信息有部分信息可能迟到)
                         cacheOrderInfo(orderInfo, client)
                         // 2. 把信息join到一起(其实就是放入一个样例类中)  (缺少用户信息, 后面再专门补充)
@@ -116,7 +117,7 @@ object SaleDetailApp {
                         })
                         saleDetail :: saleDetails
                     case (orderId, (Some(orderInfo), None)) =>
-                        println("Some(orderInfo), None")
+//                        println("Some(orderInfo), None")
                         // 1. 把order_info信息写入到缓存(因为order_detail信息有部分信息可能迟到)
                         cacheOrderInfo(orderInfo, client)
                         // 3. 去order_detail的缓存找数据, 进行join
@@ -131,7 +132,7 @@ object SaleDetailApp {
                         })
                         saleDetails
                     case (orderId, (None, Some(orderDetail))) =>
-                        println("None, Some(orderDetail)")
+//                        println("None, Some(orderDetail)")
                         // 1. 去order_info的缓存中查找
                         val orderInfoJson = client.get("order_info:" + orderDetail.order_id)
                         if (orderInfoJson == null) {
@@ -140,6 +141,7 @@ object SaleDetailApp {
                             Nil
                         } else {
                             // 2. 如果存在, 则join
+                            println(orderInfoJson)
                             val orderInfo = JSON.parseObject(orderInfoJson, classOf[OrderInfo])
                             SaleDetail().mergeOrderInfo(orderInfo).mergeOrderDetail(orderDetail) :: Nil
                         }
@@ -171,8 +173,9 @@ object SaleDetailApp {
              */
             // 2. 把rdd转成k-v和userinfo做join
             val saleDetailRDD = rdd.map(detail => (detail.user_id, detail))
+            saleDetailRDD.cache()
             // 1. 先把user数据读出来
-            val userInfoRDD = readUserInfo(spark, rdd.map(_.user_id).collect)
+            val userInfoRDD = readUserInfo(spark, rdd.map(_.user_id).distinct().collect)
             // 3. 内连接
             saleDetailRDD
                 .join(userInfoRDD)
@@ -211,11 +214,11 @@ object SaleDetailApp {
         client.close()
         // 如果长度相等, 表示需要的用户信息, 全部在redis找到
         if (userIdAndUserInfoStringList.size() == userIds.size) { // 有数据, 直接返回
-            val userInfo: List[(String, UserInfo)] = userIdAndUserInfoStringList.map{
+            val userInfo: List[(String, UserInfo)] = userIdAndUserInfoStringList.map {
                 case (userId, jsonString) => (userId, JSON.parseObject(jsonString, classOf[UserInfo]))
             }
             spark.sparkContext.parallelize(userInfo)
-        } else { // 没有读到数据, 从mysql读
+        } else { // 没有读到数据,或读到数据不完整, 从mysql读
             import spark.implicits._
             val userInfoRDD: RDD[(String, UserInfo)] = spark.read
                 .jdbc(url, "user_info", props)
@@ -223,10 +226,20 @@ object SaleDetailApp {
                 .map(info => (info.id, info))
                 .rdd
             // 把user信息入到redis中 TODO
+            userInfoRDD.foreachPartition((it: Iterator[(String, UserInfo)]) => {
+                
+                val client: Jedis = RedisUtil.getClient
+                it.foreach {
+                    case (userId, userInfo) =>
+                        client.hset("user_info", userId, Serialization.write(userInfo)(DefaultFormats))
+                }
+                client.close()
+            })
+            
             userInfoRDD
         }
         
-       
+        
     }
     
     def main(args: Array[String]): Unit = {

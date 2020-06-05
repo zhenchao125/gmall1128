@@ -45,5 +45,10 @@ object RedisUtil {
     }
     
     
-    def getClient: Jedis = pool.getResource
+    def getClient: Jedis = {
+        //        pool.getResource
+        val client = new Jedis(host, port, 60 * 1000)
+        client.connect()
+        client
+    }
 }
