@@ -10,6 +10,8 @@ import com.alibaba.otter.canal.protocol.{CanalEntry, Message}
 import com.atguigu.gmall.common.Constant
 import com.google.protobuf.ByteString
 
+import scala.collection.JavaConversions._
+
 /**
  * Author atguigu
  * Date 2020/5/30 15:29
@@ -20,22 +22,26 @@ object CanalClient {
                   tableName: String,
                   eventType: CanalEntry.EventType) = {
         // 计算订单总额 order_info
-        if(tableName == "order_info" && eventType == EventType.INSERT && rowDataList != null && rowDataList.size() > 0){
-                import scala.collection.JavaConversions._
-                for(rowData <- rowDataList){
-                    val result = new JSONObject()
-                    // 一个rowData表示一行数据, 所有列组成一个json对象, 写入到Kafka中
-                    val columnList: util.List[CanalEntry.Column] = rowData.getAfterColumnsList
-                    for(column <- columnList){ // column 列
-                        val key: String = column.getName  // 列名
-                        val value = column.getValue   // 列值
-                        result.put(key, value)
-                    }
-                    // 把数据写入到kafka中. 用一个生产者
-                    MykafkaUtil.send(Constant.ORDER_INFO_TOPIC, result.toJSONString)
-                }
+        if (tableName == "order_info" && eventType == EventType.INSERT && rowDataList != null && rowDataList.size() > 0) {
+            sendToKafka(Constant.ORDER_INFO_TOPIC, rowDataList)
+        } else if (tableName == "order_detail" && eventType == EventType.INSERT && rowDataList != null && rowDataList.size() > 0) {
+            sendToKafka(Constant.ORDER_DETAIL_TOPIC, rowDataList)
         }
-        
+    }
+    
+    private def sendToKafka(topic: String, rowDataList: util.List[CanalEntry.RowData]): Unit = {
+        for (rowData <- rowDataList) {
+            val result = new JSONObject()
+            // 一个rowData表示一行数据, 所有列组成一个json对象, 写入到Kafka中
+            val columnList: util.List[CanalEntry.Column] = rowData.getAfterColumnsList
+            for (column <- columnList) { // column 列
+                val key: String = column.getName // 列名
+                val value = column.getValue // 列值
+                result.put(key, value)
+            }
+            // 把数据写入到kafka中. 用一个生产者
+            MykafkaUtil.send(topic, result.toJSONString)
+        }
     }
     
     def main(args: Array[String]): Unit = {
@@ -76,6 +82,7 @@ object CanalClient {
         }
     }
 }
+
 /*
 #################################################
 ## mysql serverId , v1.0.26+ will autoGen
