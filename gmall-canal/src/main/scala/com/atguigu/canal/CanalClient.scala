@@ -2,6 +2,7 @@ package com.atguigu.canal
 
 import java.net.InetSocketAddress
 import java.util
+import java.util.Random
 
 import com.alibaba.fastjson.JSONObject
 import com.alibaba.otter.canal.client.{CanalConnector, CanalConnectors}
@@ -40,7 +41,14 @@ object CanalClient {
                 result.put(key, value)
             }
             // 把数据写入到kafka中. 用一个生产者
-            MykafkaUtil.send(topic, result.toJSONString)
+            // 单纯的模拟数据延迟情况
+            new Thread(){
+                override def run(): Unit = {
+                    Thread.sleep(new Random().nextInt(1000 * 20))  // 随机延迟0-20s
+                    MykafkaUtil.send(topic, result.toJSONString)
+                }
+            }.start()
+           
         }
     }
     
