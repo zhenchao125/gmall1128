@@ -6,6 +6,7 @@ import com.alibaba.fastjson.JSON
 import com.atguigu.gmall.common.Constant
 import com.atguigu.gmall.realtime.bean.{OrderDetail, OrderInfo, SaleDetail, UserInfo}
 import com.atguigu.gmall.realtime.util.{MyKafkaUtil, RedisUtil}
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.streaming.{Seconds, StreamingContext}
@@ -216,7 +217,7 @@ object SaleDetailApp {
             spark.sparkContext.parallelize(userInfo)
         } else { // 没有读到数据, 从mysql读
             import spark.implicits._
-            val userInfoRDD = spark.read
+            val userInfoRDD: RDD[(String, UserInfo)] = spark.read
                 .jdbc(url, "user_info", props)
                 .as[UserInfo]
                 .map(info => (info.id, info))
