@@ -1,12 +1,15 @@
 package com.atguigu.gmall.realtime.app
 
+import java.util.Properties
+
 import com.alibaba.fastjson.JSON
 import com.atguigu.gmall.common.Constant
-import com.atguigu.gmall.realtime.bean.{OrderDetail, OrderInfo, SaleDetail}
+import com.atguigu.gmall.realtime.bean.{OrderDetail, OrderInfo, SaleDetail, UserInfo}
 import com.atguigu.gmall.realtime.util.{MyKafkaUtil, RedisUtil}
-import org.apache.spark.SparkConf
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.streaming.{Seconds, StreamingContext}
+import org.apache.spark.{SparkConf, SparkContext}
 import org.json4s.jackson.Serialization
 import redis.clients.jedis.Jedis
 
@@ -15,6 +18,10 @@ import redis.clients.jedis.Jedis
  * Date 2020/6/5 10:38
  */
 object SaleDetailApp {
+    val url = "jdbc:mysql://hadoop102:3306/gmall1128"
+    val props: Properties = new Properties()
+    props.setProperty("user", "root")
+    props.setProperty("password", "aaaaaa")
     
     /**
      * 获取order_info和order_detail流
@@ -145,16 +152,93 @@ object SaleDetailApp {
         
     }
     
+    /**
+     * 反查Mysql, 得到用户 信息
+     *
+     * @param saleDetailStream
+     * @param sc
+     * @return
+     */
+    def joinUser(saleDetailStream: DStream[SaleDetail], sc: SparkContext) = {
+        val spark: SparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
+        
+        saleDetailStream.transform(rdd => {
+            /*
+                读jdbc有两种方式:
+                    1. 直接在driver端直接使用rdd的join
+                    2. 在rdd的每个分区中完成join
+             */
+            // 2. 把rdd转成k-v和userinfo做join
+            val saleDetailRDD = rdd.map(detail => (detail.user_id, detail))
+            // 1. 先把user数据读出来
+            val userInfoRDD = readUserInfo(spark, rdd.map(_.user_id).collect)
+            // 3. 内连接
+            saleDetailRDD
+                .join(userInfoRDD)
+                .map {
+                    case (_, (saleDetail, userInfo)) =>
+                        saleDetail.mergeUserInfo(userInfo)
+                }
+        })
+    }
+    
+    /**
+     * 读取用户数据
+     * 1. 先从redis读
+     * 2. redis读不到, 从mysql读
+     * 3. 把mysql读到的数据, 写入到redis
+     *
+     * @param spark
+     * @param userIds 这次需要join的用户的id
+     * @return
+     */
+    def readUserInfo(spark: SparkSession, userIds: Array[String]) = {
+        import scala.collection.JavaConversions._
+        
+        /*
+            key                             value
+            "user_info"                     hash
+                                            field                   value
+                                            user_id                 用户信息的json字符串
+             */
+        val client: Jedis = RedisUtil.getClient
+        // 把需要的用户信息, 从redis读取出来
+        val userIdAndUserInfoStringList: List[(String, String)] =
+            client.hgetAll("user_info").toList.filter {
+                case (userId, userInfoString) => userIds.contains(userId)
+            }
+        client.close()
+        // 如果长度相等, 表示需要的用户信息, 全部在redis找到
+        if (userIdAndUserInfoStringList.size() == userIds.size) { // 有数据, 直接返回
+            val userInfo: List[(String, UserInfo)] = userIdAndUserInfoStringList.map{
+                case (userId, jsonString) => (userId, JSON.parseObject(jsonString, classOf[UserInfo]))
+            }
+            spark.sparkContext.parallelize(userInfo)
+        } else { // 没有读到数据, 从mysql读
+            import spark.implicits._
+            val userInfoRDD = spark.read
+                .jdbc(url, "user_info", props)
+                .as[UserInfo]
+                .map(info => (info.id, info))
+                .rdd
+            // 把user信息入到redis中 TODO
+            userInfoRDD
+        }
+        
+       
+    }
+    
     def main(args: Array[String]): Unit = {
         // 1. 读数据
         val conf: SparkConf = new SparkConf().setMaster("local[*]").setAppName("SaleDetailApp")
-        val ssc = new StreamingContext(conf, Seconds(3))
+        val ssc: StreamingContext = new StreamingContext(conf, Seconds(3))
         val (orderInfoStream, orderDetailStream) = getOrderInfoAndOrderDetailStreams(ssc)
         // 2. 流join, 实现一个宽表的效果
-        val saleDetailStream = fullJoin(orderInfoStream, orderDetailStream)
-        saleDetailStream.print
+        val saleDetailStream: DStream[SaleDetail] = fullJoin(orderInfoStream, orderDetailStream)
+        // 2.1 join user数据. 根据用户id, 反查mysql,得到用户相关信息
+        val resultStream = joinUser(saleDetailStream, ssc.sparkContext)
         // 3. 把宽表的数据, 写入到es
-        
+        resultStream.print
         
         ssc.start()
         ssc.awaitTermination()
@@ -198,6 +282,16 @@ key                                                      value
 "order_detail:" + order_id1 + ":" + id1                  这行数据json字符 "{.....}"
 "order_detail:" + order_id1 + ":" + id2                 这行数据json字符 "{.....}"
 "order_detail:" + order_id1 + ":" + id3                 这行数据json字符 "{.....}"
+
+
+--------
+User数据如何在redis中做缓存
+
+key                             value
+"user_info"                     hash
+                                field                   value
+                                user_id                 用户信息的json字符串
+
  */
 
 
