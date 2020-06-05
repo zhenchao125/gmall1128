@@ -141,7 +141,6 @@ object SaleDetailApp {
                             Nil
                         } else {
                             // 2. 如果存在, 则join
-                            println(orderInfoJson)
                             val orderInfo = JSON.parseObject(orderInfoJson, classOf[OrderInfo])
                             SaleDetail().mergeOrderInfo(orderInfo).mergeOrderDetail(orderDetail) :: Nil
                         }
