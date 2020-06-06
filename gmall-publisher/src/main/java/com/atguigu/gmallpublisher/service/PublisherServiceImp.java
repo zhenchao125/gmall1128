@@ -6,6 +6,7 @@ import com.atguigu.gmallpublisher.util.ESUtil;
 import io.searchbox.client.JestClient;
 import io.searchbox.core.Search;
 import io.searchbox.core.SearchResult;
+import io.searchbox.core.search.aggregation.TermsAggregation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -98,16 +99,27 @@ public class PublisherServiceImp implements PublisherService {
         Integer total = searchResult.getTotal();
         result.put("total", total);
         // 3.2 获取详情
-        ArrayList<HashMap> detail = new ArrayList<>();
+        List<HashMap> detail = new ArrayList<>();
         List<SearchResult.Hit<HashMap, Void>> hits = searchResult.getHits(HashMap.class);
         for (SearchResult.Hit<HashMap, Void> hit : hits) {
             HashMap source = hit.source;
             detail.add(source);
         }
         result.put("detail", detail);
-        // 3.3 聚合结果  TODO
-
-
+        // 3.3 聚合结果
+        // Map[age1->10, age2->20, ...]
+        // Map[M->10, F->20, ...]
+        Map<String, Long> agg = new HashMap<>();
+        List<TermsAggregation.Entry> buckets = searchResult
+                .getAggregations()
+                .getTermsAggregation("group_by_" + aggField)
+                .getBuckets();
+        for (TermsAggregation.Entry bucket : buckets) {
+            String key = bucket.getKey();
+            Long value = bucket.getCount();
+            agg.put(key, value);
+        }
+        result.put("agg", agg);
 
         return result;
     }

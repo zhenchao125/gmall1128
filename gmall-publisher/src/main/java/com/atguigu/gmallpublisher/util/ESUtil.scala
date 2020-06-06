@@ -60,7 +60,6 @@ object ESUtil {
           |  "from": ${(startPage - 1) * sizePerPage},
           |  "size": $sizePerPage
           |}
-          |
           |""".stripMargin
     }
 }

@@ -1,6 +1,9 @@
 package com.atguigu.gmallpublisher.controller;
 
 import com.alibaba.fastjson.JSON;
+import com.atguigu.gmallpublisher.bean.Option;
+import com.atguigu.gmallpublisher.bean.SaleInfo;
+import com.atguigu.gmallpublisher.bean.Stat;
 import com.atguigu.gmallpublisher.service.PublisherService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,6 +14,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -96,15 +100,46 @@ public class PublisherController {
     //http://localhost:8070/sale_detail?date=2020-06-06&&startpage=1&&size=5&&keyword=手机小米
     @GetMapping("/sale_detail")
     public String saleDetail(String date, int startpage, int size, String keyword) throws IOException {
-        Map<String, Object> result1 = service.getSaleDetailAndAgg(date,
+        Map<String, Object> genderResult = service.getSaleDetailAndAgg(date,
                 keyword,
                 startpage,
                 size,
                 "user_gender",
                 2);
-        System.out.println(result1);
 
-        return "ok";
+        Map<String, Object> ageResult = service.getSaleDetailAndAgg(date,
+                keyword,
+                startpage,
+                size,
+                "user_age",
+                100);
+
+        SaleInfo saleInfo = new SaleInfo();
+        // 向最终结果封装数据
+        // 1. 封装总数
+        Integer total = (Integer) genderResult.get("total");
+        saleInfo.setTotal(total);
+        // 2. 封装明细(detail)
+        List<HashMap> detail = (List<HashMap>)genderResult.get("detail");
+        saleInfo.setDetail(detail);
+        // 3. 封装饼图
+        // 3.1 性别的饼图
+        Stat genderStat = new Stat();
+        genderStat.setTitle("用户性别占比");
+        Map<String, Long> aggGender = (Map<String, Long>)genderResult.get("agg");  // M->25, F->25
+        for (String key : aggGender.keySet()) {
+            Option opt = new Option();
+            opt.setName(key.equals("M") ? "男": "女");  // M   F
+            opt.setValue(aggGender.get(key));  // 25  25
+            // 把这个选项插入到饼图中
+            genderStat.addOption(opt);
+        }
+        saleInfo.addStat(genderStat);  // 性别的饼图插入到最外层的对象中
+
+        // 3.2 年龄饼图
+
+        return JSON.toJSONString(saleInfo);
+        // Gson  jackson
     }
 
 
