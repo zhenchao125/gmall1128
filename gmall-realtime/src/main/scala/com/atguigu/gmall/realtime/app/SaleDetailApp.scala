@@ -5,7 +5,7 @@ import java.util.Properties
 import com.alibaba.fastjson.JSON
 import com.atguigu.gmall.common.Constant
 import com.atguigu.gmall.realtime.bean.{OrderDetail, OrderInfo, SaleDetail, UserInfo}
-import com.atguigu.gmall.realtime.util.{MyKafkaUtil, RedisUtil}
+import com.atguigu.gmall.realtime.util.{ESUtil, MyKafkaUtil, RedisUtil}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.streaming.dstream.DStream
@@ -100,7 +100,7 @@ object SaleDetailApp {
                 val result: Iterator[SaleDetail] = it.flatMap {
                     // order_info有数据, order_detail有数据
                     case (orderId, (Some(orderInfo), Some(orderDetail))) =>
-//                        println("Some(orderInfo)   Some(orderDetail)")
+                        println("Some(orderInfo)   Some(orderDetail)")
                         // 1. 把order_info信息写入到缓存(因为order_detail信息有部分信息可能迟到)
                         cacheOrderInfo(orderInfo, client)
                         // 2. 把信息join到一起(其实就是放入一个样例类中)  (缺少用户信息, 后面再专门补充)
@@ -117,7 +117,7 @@ object SaleDetailApp {
                         })
                         saleDetail :: saleDetails
                     case (orderId, (Some(orderInfo), None)) =>
-//                        println("Some(orderInfo), None")
+                        println("Some(orderInfo), None")
                         // 1. 把order_info信息写入到缓存(因为order_detail信息有部分信息可能迟到)
                         cacheOrderInfo(orderInfo, client)
                         // 3. 去order_detail的缓存找数据, 进行join
@@ -132,7 +132,7 @@ object SaleDetailApp {
                         })
                         saleDetails
                     case (orderId, (None, Some(orderDetail))) =>
-//                        println("None, Some(orderDetail)")
+                        println("None, Some(orderDetail)")
                         // 1. 去order_info的缓存中查找
                         val orderInfoJson = client.get("order_info:" + orderDetail.order_id)
                         if (orderInfoJson == null) {
@@ -212,7 +212,8 @@ object SaleDetailApp {
             }
         client.close()
         // 如果长度相等, 表示需要的用户信息, 全部在redis找到
-        if (userIdAndUserInfoStringList.size() == userIds.size) { // 有数据, 直接返回
+//        if (userIdAndUserInfoStringList.size() == userIds.size) { // 有数据, 直接返回
+        if (false) { // 有数据, 直接返回
             val userInfo: List[(String, UserInfo)] = userIdAndUserInfoStringList.map {
                 case (userId, jsonString) => (userId, JSON.parseObject(jsonString, classOf[UserInfo]))
             }
@@ -241,6 +242,19 @@ object SaleDetailApp {
         
     }
     
+    /**
+     * 把流中的数据存储到es中
+     *
+     * @param resultStream
+     */
+    def saveToES(resultStream: DStream[SaleDetail]) = {
+        resultStream.foreachRDD(rdd => {
+            rdd.foreachPartition(it => {
+                ESUtil.insertBulk("gmall_sale_detail1128", it)
+            })
+        })
+    }
+    
     def main(args: Array[String]): Unit = {
         // 1. 读数据
         val conf: SparkConf = new SparkConf().setMaster("local[*]").setAppName("SaleDetailApp")
@@ -251,7 +265,7 @@ object SaleDetailApp {
         // 2.1 join user数据. 根据用户id, 反查mysql,得到用户相关信息
         val resultStream: DStream[SaleDetail] = joinUser(saleDetailStream, ssc.sparkContext)
         // 3. 把宽表的数据, 写入到es
-        resultStream.print
+        saveToES(resultStream)
         
         ssc.start()
         ssc.awaitTermination()
