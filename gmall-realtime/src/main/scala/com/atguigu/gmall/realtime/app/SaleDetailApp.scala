@@ -249,7 +249,7 @@ object SaleDetailApp {
         // 2. 流join, 实现一个宽表的效果
         val saleDetailStream: DStream[SaleDetail] = fullJoin(orderInfoStream, orderDetailStream)
         // 2.1 join user数据. 根据用户id, 反查mysql,得到用户相关信息
-        val resultStream = joinUser(saleDetailStream, ssc.sparkContext)
+        val resultStream: DStream[SaleDetail] = joinUser(saleDetailStream, ssc.sparkContext)
         // 3. 把宽表的数据, 写入到es
         resultStream.print
         
