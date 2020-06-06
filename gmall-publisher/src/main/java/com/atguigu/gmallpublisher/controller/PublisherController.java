@@ -135,8 +135,31 @@ public class PublisherController {
             genderStat.addOption(opt);
         }
         saleInfo.addStat(genderStat);  // 性别的饼图插入到最外层的对象中
-
         // 3.2 年龄饼图
+        Stat ageStat = new Stat();
+        ageStat.addOption(new Option("20以下", 0L));
+        ageStat.addOption(new Option("20以上30以下", 0L));
+        ageStat.addOption(new Option("30以上", 0L));
+        Map<String, Long> aggAge = (Map<String, Long>)ageResult.get("agg");
+        // "10"->20  "20"->15
+        for (Map.Entry<String, Long> entry : aggAge.entrySet()) {
+            int age = Integer.parseInt(entry.getKey()); // 把年龄转成int, 才可以比较大小
+            Long value = entry.getValue();
+            if(age < 20){
+                Option opt = ageStat.getOptions().get(0);
+                Long newValue = opt.getValue() + value;
+                opt.setValue(newValue);
+            }else if(age < 30){
+                Option opt = ageStat.getOptions().get(1);
+                Long newValue = opt.getValue() + value;
+                opt.setValue(newValue);
+            }else{
+                Option opt = ageStat.getOptions().get(2);
+                Long newValue = opt.getValue() + value;
+                opt.setValue(newValue);
+            }
+        }
+        saleInfo.addStat(ageStat);
 
         return JSON.toJSONString(saleInfo);
         // Gson  jackson
