@@ -165,6 +165,9 @@ object SaleDetailApp {
         val spark: SparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
         
         saleDetailStream.transform(rdd => {
+            // 对rdd没有做缓存, collect的时候, 就做了join, join的过程中, 会把redis的数据删除一部分.
+            // 当真正join的时候, 如果没有缓存, 则会重新计算rdd, 但是这个时候出现问题: order_detail的信息已经没有了
+            rdd.cache()
             /*
                 读jdbc有两种方式:
                     1. 直接在driver端直接使用rdd的join
@@ -172,9 +175,9 @@ object SaleDetailApp {
              */
             // 2. 把rdd转成k-v和userinfo做join
             val saleDetailRDD = rdd.map(detail => (detail.user_id, detail))
-            saleDetailRDD.cache()
             // 1. 先把user数据读出来
             val userInfoRDD = readUserInfo(spark, rdd.map(_.user_id).distinct().collect)
+            //            val userInfoRDD = readUserInfo(spark, Array[String]())
             // 3. 内连接
             saleDetailRDD
                 .join(userInfoRDD)
@@ -212,8 +215,8 @@ object SaleDetailApp {
             }
         client.close()
         // 如果长度相等, 表示需要的用户信息, 全部在redis找到
-//        if (userIdAndUserInfoStringList.size() == userIds.size) { // 有数据, 直接返回
-        if (false) { // 有数据, 直接返回
+        if (userIdAndUserInfoStringList.size() == userIds.size) { // 有数据, 直接返回
+            //        if (false) { // 有数据, 直接返回
             val userInfo: List[(String, UserInfo)] = userIdAndUserInfoStringList.map {
                 case (userId, jsonString) => (userId, JSON.parseObject(jsonString, classOf[UserInfo]))
             }
@@ -238,8 +241,6 @@ object SaleDetailApp {
             
             userInfoRDD
         }
-        
-        
     }
     
     /**

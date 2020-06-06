@@ -2,10 +2,16 @@ package com.atguigu.gmallpublisher.service;
 
 import com.atguigu.gmallpublisher.mapper.DauMapper;
 import com.atguigu.gmallpublisher.mapper.OrderMapper;
+import com.atguigu.gmallpublisher.util.ESUtil;
+import io.searchbox.client.JestClient;
+import io.searchbox.core.Search;
+import io.searchbox.core.SearchResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,4 +76,44 @@ public class PublisherServiceImp implements PublisherService {
 
         return result;
 }
+
+    @Override
+    public Map<String, Object> getSaleDetailAndAgg(String date,
+                                                   String keyword,
+                                                   int startPage,
+                                                   int sizePerPage,
+                                                   String aggField,
+                                                   int aggCount) throws IOException {
+        // 0. 获取查询字符串
+        String dsl =  ESUtil.getDSL(date, keyword, startPage, sizePerPage, aggField, aggCount);
+        // 1. 获取es客户端
+        JestClient client = ESUtil.getClient();
+        Search search = new Search.Builder(dsl).build();
+        // 2. 执行查询, 得到所有的数据
+        SearchResult searchResult = client.execute(search);
+
+        // 3. 从searchResult中得到我们想要的数据
+        Map<String, Object> result = new HashMap<>();
+        // 3.1 总数
+        Integer total = searchResult.getTotal();
+        result.put("total", total);
+        // 3.2 获取详情
+        ArrayList<HashMap> detail = new ArrayList<>();
+        List<SearchResult.Hit<HashMap, Void>> hits = searchResult.getHits(HashMap.class);
+        for (SearchResult.Hit<HashMap, Void> hit : hits) {
+            HashMap source = hit.source;
+            detail.add(source);
+        }
+        result.put("detail", detail);
+        // 3.3 聚合结果  TODO
+
+
+
+        return result;
+    }
 }
+/*
+"total"-> 100 ,
+"agg"-> Map<..>
+"detail": List<Map>
+ */

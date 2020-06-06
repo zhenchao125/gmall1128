@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -66,7 +67,7 @@ public class PublisherController {
             result.put("today", today);
             result.put("yesterday", yesterday);
             return JSON.toJSONString(result);
-        }else if("order_amount".equals(id)){
+        } else if ("order_amount".equals(id)) {
             Map<String, Double> today = service.getHourAmount(date);
             Map<String, Double> yesterday = service.getHourAmount(getYesterday(date));
             /*
@@ -91,6 +92,21 @@ public class PublisherController {
 //        return LocalDate.parse(date).plusDays(-1).toString();
         return LocalDate.parse(date).minusDays(1).toString();
     }
+
+    //http://localhost:8070/sale_detail?date=2020-06-06&&startpage=1&&size=5&&keyword=手机小米
+    @GetMapping("/sale_detail")
+    public String saleDetail(String date, int startpage, int size, String keyword) throws IOException {
+        Map<String, Object> result1 = service.getSaleDetailAndAgg(date,
+                keyword,
+                startpage,
+                size,
+                "user_gender",
+                2);
+        System.out.println(result1);
+
+        return "ok";
+    }
+
 
 }
 /*
